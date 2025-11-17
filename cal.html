@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Calculator</title>
+  <style>
+    :root{
+      --bg:#0f1724; /* dark navy */
+      --panel:#111827;
+      --accent:#60a5fa; /* blue */
+      --muted:#94a3b8;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: linear-gradient(180deg, var(--bg), #071029);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      color:#e6eef8;
+    }
+
+    .calculator{
+      width: min(420px, 96vw);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), var(--glass));
+      border-radius:16px;
+      box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .display{
+      padding:20px;
+      background:transparent;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .prev {
+      color:var(--muted);
+      font-size:14px;
+      min-height:18px;
+      text-align:right;
+      word-break:break-all;
+    }
+
+    .current{
+      font-weight:600;
+      font-size:28px;
+      text-align:right;
+      word-break:break-all;
+    }
+
+    .pad{
+      display:grid;
+      grid-template-columns: repeat(4,1fr);
+      gap:10px;
+      padding:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
+    }
+
+    button{
+      appearance:none;
+      border:0;
+      padding:18px 12px;
+      border-radius:10px;
+      font-size:18px;
+      cursor:pointer;
+      background: rgba(255,255,255,0.03);
+      color:inherit;
+      transition: transform .06s ease, box-shadow .06s ease, background .06s ease;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.2);
+    }
+
+    button:active{transform:translateY(1px) scale(.998)}
+
+    .btn-op{ background: linear-gradient(180deg, rgba(96,165,250,0.14), rgba(96,165,250,0.08)); color:var(--accent); font-weight:600;}
+    .btn-equal{ grid-column: span 2; background: linear-gradient(180deg, rgba(34,197,94,0.16), rgba(34,197,94,0.08)); color:#8ef0b1; font-weight:700}
+    .btn-clear{ background: linear-gradient(180deg, rgba(239,68,68,0.12), rgba(239,68,68,0.06)); color:#ffb4b4; font-weight:700 }
+    .btn-wide{ grid-column: span 2 }
+
+    .hint{ font-size:13px; color:var(--muted); padding:10px 16px; }
+
+    /* responsive tweaks */
+    @media (max-width:380px){
+      .current{font-size:22px}
+      button{padding:14px 10px}
+    }
+  </style>
+</head>
+<body>
+  <main class="calculator" role="application" aria-label="Simple calculator">
+    <section class="display" aria-live="polite">
+      <div class="prev" id="previous">&nbsp;</div>
+      <div class="current" id="current">0</div>
+    </section>
+
+    <section class="pad" role="group" aria-label="Calculator buttons">
+      <button class="btn-clear" data-action="clear" title="Clear (Esc)">C</button>
+      <button data-action="back" title="Backspace (Backspace)">⌫</button>
+      <button data-action="percent" title="Percent">%</button>
+      <button class="btn-op" data-value="/" title="Divide">÷</button>
+
+      <button data-value="7">7</button>
+      <button data-value="8">8</button>
+      <button data-value="9">9</button>
+      <button class="btn-op" data-value="*" title="Multiply">×</button>
+
+      <button data-value="4">4</button>
+      <button data-value="5">5</button>
+      <button data-value="6">6</button>
+      <button class="btn-op" data-value="-" title="Subtract">−</button>
+
+      <button data-value="1">1</button>
+      <button data-value="2">2</button>
+      <button data-value="3">3</button>
+      <button class="btn-op" data-value="+" title="Add">+</button>
+
+      <button data-value="0" class="btn-wide">0</button>
+      <button data-value="." title="Decimal">.</button>
+      <button class="btn-equal" data-action="calculate" title="Equals (Enter)">=</button>
+    </section>
+
+    <div class="hint">Tip: You can also use your keyboard. Keys: numbers, + - * / . Enter, Backspace, Esc.</div>
+  </main>
+
+  <script>
+    (function(){
+      const previousEl = document.getElementById('previous');
+      const currentEl = document.getElementById('current');
+      let current = '0';
+      let previous = '';
+      let overwrite = true; // next digit should overwrite if true
+
+      function updateDisplay(){
+        currentEl.textContent = current;
+        previousEl.textContent = previous || '\u00A0';
+      }
+
+      function inputDigit(d){
+        if(overwrite){
+          current = d === '.' ? '0.' : d;
+          overwrite = false;
+        } else {
+          // prevent multiple leading zeros
+          if(current === '0' && d === '0') return;
+          if(current === '0' && d !== '.') current = d;
+          else current += d;
+        }
+        updateDisplay();
+      }
+
+      function inputOperator(op){
+        if(!previous && !current) return;
+        if(previous && !overwrite){
+          // chain calculation: evaluate previous op first
+          evaluate();
+        }
+        previous = current + ' ' + op;
+        overwrite = true;
+        updateDisplay();
+      }
+
+      function clearAll(){ current = '0'; previous = ''; overwrite = true; updateDisplay(); }
+      function backspace(){
+        if(overwrite){ current = '0'; overwrite = true; }
+        else {
+          if(current.length <= 1) current = '0'; else current = current.slice(0,-1);
+        }
+        updateDisplay();
+      }
+
+      function percent(){
+        const num = parseFloat(current);
+        if(isNaN(num)) return;
+        current = String(num / 100);
+        overwrite = true;
+        updateDisplay();
+      }
+
+      function safeEval(expr){
+        // allow digits, parentheses, decimal point and operators + - * / % and spaces
+        if(!/^[0-9()+\-*/.%\s]+$/.test(expr)) throw new Error('Invalid characters');
+        // replace unicode divide/multiply just in case
+        expr = expr.replace(/×/g,'*').replace(/÷/g,'/');
+        // simple eval in a Function for slightly safer evaluation scope
+        // Note: in-browser calculator — avoid evaluating user-provided code on servers.
+        // We already sanitized characters above.
+        // Also handle accidental leading zeros by parseFloat where needed.
+        // Use Function to avoid direct eval string being shadowed
+        // eslint-disable-next-line no-new-func
+        return Function('return (' + expr + ')')();
+      }
+
+      function evaluate(){
+        if(!previous) return;
+        const op = previous.trim().slice(-1);
+        const left = previous.slice(0, -2).trim();
+        const right = current;
+        const expr = left + op + right;
+        try{
+          const result = safeEval(expr);
+          current = String(result);
+          previous = '';
+          overwrite = true;
+          updateDisplay();
+        }catch(e){
+          current = 'Error';
+          previous = '';
+          overwrite = true;
+          updateDisplay();
+        }
+      }
+
+      // handle clicks
+      document.querySelector('.pad').addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if(!b) return;
+        const val = b.getAttribute('data-value');
+        const action = b.getAttribute('data-action');
+        if(action === 'clear') return clearAll();
+        if(action === 'back') return backspace();
+        if(action === 'percent') return percent();
+        if(action === 'calculate') return evaluate();
+        if(val && /[0-9.]/.test(val)) return inputDigit(val);
+        if(val && /[+\-*/]/.test(val)) return inputOperator(val);
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', e => {
+        if(e.key >= '0' && e.key <= '9') { inputDigit(e.key); e.preventDefault(); return; }
+        if(e.key === '.') { inputDigit('.'); e.preventDefault(); return; }
+        if(e.key === 'Enter' || e.key === '=') { evaluate(); e.preventDefault(); return; }
+        if(e.key === 'Escape') { clearAll(); e.preventDefault(); return; }
+        if(e.key === 'Backspace') { backspace(); e.preventDefault(); return; }
+        if(['+','-','*','/'].includes(e.key)) { inputOperator(e.key); e.preventDefault(); return; }
+        if(e.key === '%') { percent(); e.preventDefault(); return; }
+      });
+
+      // init
+      updateDisplay();
+    })();
+  </script>
+</body>
+</html>
